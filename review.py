@@ -1,57 +1,87 @@
-import requests
-import json
 import time
 import logging
+import requests
+import json
 
-API_KEY = 'f1a6b3b9-7a04-47e1-b010-78da80bf4613:66621d30-9b6c-4293-aad9-44257cce4638'
-MOHIR_AI_API_URL = 'https://mohir.ai/api/v1/stt'
-AUDIO_FILE = 'mus.wav'
+MOHIR_API_URL = 'https://mohir.ai/api/v1/stt'
+MOHIR_API_KEY = 'f1a6b3b9-7a04-47e1-b010-78da80bf4613:66621d30-9b6c-4293-aad9-44257cce4638'
+
+DEEPGRAM_API_URL = 'https://api.deepgram.com/v1/listen'
+DEEPGRAM_API_KEY = '78e0ec524cf64f4f9627b82a67412ebb6d83da30'
+DEEPGRAM_PROJECT_KEY = '71aac4da-81e3-4b20-b10e-04c00182c28e' 
+AUDIO_FILE = 'ret.wav'
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def transcribe_audio_realtime(file_path):
+def transcribe_audio_deepgram(file_path):
     headers = {
-        'Authorization': f'Bearer {API_KEY}',
+        'Authorization': f'Bearer {DEEPGRAM_API_KEY}',
+        'Deepgram-Project': DEEPGRAM_PROJECT_KEY,
     }
 
     try:
         with open(file_path, 'rb') as f:
             files = {'file': f}
 
-            response = requests.post(MOHIR_AI_API_URL, headers=headers, files=files, params={'start': 'true'})
+            response = requests.post(DEEPGRAM_API_URL, headers=headers, files=files)
 
-            if response.status_code != 200:
-                logger.error(f"Failed to start real-time transcription. Status code: {response.status_code}")
+            if response.status_code == 200:
+                result = response.json()
+                logger.info("Transcription result from Deepgram:")
+                logger.info(json.dumps(result, indent=4))
+                return result
+
+            elif response.status_code == 401:
+                logger.error("Unauthorized: Invalid credentials.")
+                logger.error(response.json())
+                return None
+
+            else:
+                logger.error(f"Failed to transcribe audio with Deepgram. Status code: {response.status_code}")
                 logger.error(response.text)
-                return
-
-            logger.info("Real-time transcription started:")
-            logger.info(json.dumps(response.json(), indent=4))
-
-            chunk_size = 1024
-            while True:
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-
-                response = requests.post(MOHIR_AI_API_URL, headers=headers, data=chunk)
-
-                if response.status_code == 200:
-                    result = response.json()
-                    if 'is_final' in result and result['is_final']:
-                        logger.info("Final transcription result:")
-                    else:
-                        logger.info("Intermediate transcription result:")
-                    logger.info(json.dumps(result, indent=4))
-                else:
-                    logger.error(f"Failed to transcribe audio. Status code: {response.status_code}")
-                    logger.error(response.text)
-                    break
-
-                time.sleep(1)
+                return None
 
     except Exception as e:
-        logger.error(f"An error occurred: {e}")
+        logger.error(f"An error occurred during transcription with Deepgram: {e}")
+        return None
 
-transcribe_audio_realtime(AUDIO_FILE)
+
+def transcribe_audio_mohir(result_from_deepgram):
+    headers = {
+        'Authorization': f'Bearer {MOHIR_API_KEY}',
+    }
+
+    try:
+        if result_from_deepgram and 'id' in result_from_deepgram:
+            data = {
+                'id': result_from_deepgram['id'],
+                'range': [0, 1000],
+            }
+
+            response = requests.post(MOHIR_API_URL, headers=headers, json=data)
+
+            if response.status_code == 200:
+                result = response.json()
+                logger.info("Final transcription result from Mohir AI:")
+                logger.info(json.dumps(result, indent=4))
+                return result
+
+            else:
+                logger.error(f"Failed to transcribe audio with Mohir AI. Status code: {response.status_code}")
+                logger.error(response.text)
+                return None
+
+    except Exception as e:
+        logger.error(f"An error occurred during transcription with Mohir AI: {e}")
+        return None
+
+def main():
+    deepgram_result = transcribe_audio_deepgram(AUDIO_FILE)
+    if not deepgram_result:
+        return
+    
+    transcribe_audio_mohir(deepgram_result)
+
+if __name__ == "__main__":
+    main()
