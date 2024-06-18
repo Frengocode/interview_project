@@ -5,7 +5,7 @@ import logging
 
 API_KEY = 'f1a6b3b9-7a04-47e1-b010-78da80bf4613:66621d30-9b6c-4293-aad9-44257cce4638'
 MOHIR_AI_API_URL = 'https://mohir.ai/api/v1/stt'
-AUDIO_FILE = 'tes.mp3'
+AUDIO_FILE = 'mus.wav'
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
